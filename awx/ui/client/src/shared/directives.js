@@ -873,7 +873,7 @@ function(SettingsUtils, i18n, $rootScope) {
             id_to_close = "";
 
         if (element[0].id) {
-            template = '<div id="' + element[0].id + '_popover_container" class="popover" role="tooltip"><div class="arrow"></div><h3 id="' + element[0].id + '_popover_title" class="popover-header" translate></h3><div id="' + element[0].id + '_popover_content" class="popover-body" translate></div></div>';
+            template = '<div id="' + element[0].id + '_popover_container" class="popover" role="tooltip"><div class="arrow"></div><span id="' + element[0].id + '_popover_container"><h3 id="' + element[0].id + '_popover_title" class="popover-header" translate></h3><div id="' + element[0].id + '_popover_content" class="popover-body" translate></div></span></div>';
         }
 
         scope.triggerPopover = function(e) {
@@ -1059,18 +1059,22 @@ function(SettingsUtils, i18n, $rootScope) {
                     up: "Form-numberInputButton fa fa-angle-up"
                 },
                 spin: function(e, u) {
-                    ctrl.$setViewValue(u.value);
-                    ctrl.$setValidity('required', true);
-                    ctrl.$setValidity('min', true);
-                    ctrl.$setValidity('max', true);
-                    ctrl.$dirty = true;
-                    ctrl.$render();
-                    if (scope.job_template_form) {
-                        // need a way to find the parent form and mark it dirty
-                        scope.job_template_form.$dirty = true;
-                    }
-                    if (!scope.$$phase) {
-                        scope.$digest();
+                    if (e.originalEvent && e.originalEvent.type === 'mousewheel') {
+                        e.preventDefault();
+                    } else {
+                        ctrl.$setViewValue(u.value);
+                        ctrl.$setValidity('required', true);
+                        ctrl.$setValidity('min', true);
+                        ctrl.$setValidity('max', true);
+                        ctrl.$dirty = true;
+                        ctrl.$render();
+                        if (scope.job_template_form) {
+                            // need a way to find the parent form and mark it dirty
+                            scope.job_template_form.$dirty = true;
+                        }
+                        if (!scope.$$phase) {
+                            scope.$digest();
+                        }
                     }
                 }
             };

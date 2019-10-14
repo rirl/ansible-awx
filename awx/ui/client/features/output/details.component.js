@@ -251,10 +251,12 @@ function getHostLimitErrorDetails () {
 function getLaunchedByDetails () {
     const createdBy = resource.model.get('summary_fields.created_by');
     const jobTemplate = resource.model.get('summary_fields.job_template');
+    const workflowJobTemplate = resource.model.get('summary_fields.workflow_job_template');
     const relatedSchedule = resource.model.get('related.schedule');
     const schedule = resource.model.get('summary_fields.schedule');
+    const launchType = resource.model.get('launch_type');
 
-    if (!createdBy && !schedule) {
+    if (!createdBy && !schedule && !launchType) {
         return null;
     }
 
@@ -264,7 +266,15 @@ function getLaunchedByDetails () {
     let tooltip;
     let value;
 
-    if (createdBy) {
+    if (launchType === 'webhook' && jobTemplate) {
+        tooltip = strings.get('tooltips.WEBHOOK_JOB_TEMPLATE');
+        link = `/#/templates/job_template/${jobTemplate.id}`;
+        value = strings.get('details.WEBHOOK');
+    } else if (launchType === 'webhook' && workflowJobTemplate) {
+        tooltip = strings.get('tooltips.WEBHOOK_WORKFLOW_JOB_TEMPLATE');
+        link = `/#/templates/workflow_job_template/${workflowJobTemplate.id}`;
+        value = strings.get('details.WEBHOOK');
+    } else if (createdBy) {
         tooltip = strings.get('tooltips.USER');
         link = `/#/users/${createdBy.id}`;
         value = $filter('sanitize')(createdBy.username);
@@ -341,6 +351,28 @@ function getProjectUpdateDetails (updateId) {
     const tooltip = strings.get('tooltips.PROJECT_UPDATE');
 
     return { link, tooltip };
+}
+
+function getSCMBranchDetails (scmBranch) {
+    const label = strings.get('labels.SCM_BRANCH');
+    const value = scmBranch || resource.model.get('scm_branch');
+
+    if (!value) {
+        return null;
+    }
+
+    return { label, value };
+}
+
+function getSCMRefspecDetails (scmRefspec) {
+    const label = strings.get('labels.SCM_REFSPEC');
+    const value = scmRefspec || resource.model.get('scm_refspec');
+
+    if (!value) {
+        return null;
+    }
+
+    return { label, value };
 }
 
 function getInventoryScmDetails (updateId, updateStatus) {
@@ -420,8 +452,8 @@ function getJobExplanationDetails () {
     return { label, less, more, showMore, hasMoreToShow };
 }
 
-function getResultTracebackDetails () {
-    const traceback = resource.model.get('result_traceback');
+function getResultTracebackDetails (resultTraceback) {
+    const traceback = resultTraceback || resource.model.get('result_traceback');
 
     if (!traceback) {
         return null;
@@ -521,13 +553,17 @@ function getInstanceGroupDetails () {
         return null;
     }
 
-    const label = strings.get('labels.INSTANCE_GROUP');
     const value = $filter('sanitize')(instanceGroup.name);
-    const link = `/#/instance_groups/${instanceGroup.id}`;
+
+    let label = strings.get('labels.INSTANCE_GROUP');
+    let link = `/#/instance_groups/${instanceGroup.id}`;
+    if (instanceGroup.is_containerized) {
+        label = strings.get('labels.CONTAINER_GROUP');
+        link = `/#/instance_groups/container_group/${instanceGroup.id}`;
+    }
 
     let isolated = null;
-
-    if (instanceGroup.is_isolated) {
+    if (instanceGroup.controller_id) {
         isolated = strings.get('details.ISOLATED');
     }
 
@@ -800,6 +836,8 @@ function JobDetailsController (
         vm.project = getProjectDetails();
         vm.projectUpdate = getProjectUpdateDetails();
         vm.projectStatus = getProjectStatusDetails();
+        vm.scmBranch = getSCMBranchDetails();
+        vm.scmRefspec = getSCMRefspecDetails();
         vm.scmRevision = getSCMRevisionDetails();
         vm.inventoryScm = getInventoryScmDetails();
         vm.playbook = getPlaybookDetails();
@@ -840,21 +878,27 @@ function JobDetailsController (
             started,
             finished,
             scm,
+            scmBranch,
+            scmRefspec,
             inventoryScm,
             scmRevision,
             instanceGroup,
             environment,
             artifacts,
-            executionNode
+            executionNode,
+            resultTraceback
         }) => {
             vm.started = getStartDetails(started);
             vm.finished = getFinishDetails(finished);
             vm.projectUpdate = getProjectUpdateDetails(scm.id);
             vm.projectStatus = getProjectStatusDetails(scm.status);
+            vm.scmBranch = getSCMBranchDetails(scmBranch);
+            vm.scmRefspec = getSCMRefspecDetails(scmRefspec);
             vm.environment = getEnvironmentDetails(environment);
             vm.artifacts = getArtifactsDetails(artifacts);
             vm.executionNode = getExecutionNodeDetails(executionNode);
             vm.inventoryScm = getInventoryScmDetails(inventoryScm.id, inventoryScm.status);
+            vm.resultTraceback = getResultTracebackDetails(resultTraceback);
             vm.scmRevision = getSCMRevisionDetails(scmRevision);
             vm.instanceGroup = getInstanceGroupDetails(instanceGroup);
             vm.status = getStatusDetails(status);

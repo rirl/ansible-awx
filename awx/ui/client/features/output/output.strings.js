@@ -17,15 +17,12 @@ function OutputStrings (BaseString) {
         ARTIFACTS: t.s('Read-only view of artifacts added to the job template'),
         CANCEL: t.s('Cancel'),
         COLLAPSE_OUTPUT: t.s('Collapse Output'),
-        CREDENTIAL: t.s('View the Credential'),
-        DETAILS: t.s('Click for details'),
         DELETE: t.s('Delete'),
         DOWNLOAD_OUTPUT: t.s('Download Output'),
-        EVENT_ID: t.s('Event ID:'),
+        CREDENTIAL: t.s('View the Credential'),
         EXPAND_OUTPUT: t.s('Expand Output'),
         EXTRA_VARS: t.s('Read-only view of extra variables added to the job template'),
         HOST_LIMIT: t.s('When this field is true, the job\'s inventory belongs to an organization that has exceeded it\'s limit of hosts as defined by the system administrator.'),
-        HOST_STATUS: t.s('Status:'),
         INVENTORY: t.s('View the Inventory'),
         INVENTORY_SCM: t.s('View the Project'),
         INVENTORY_SCM_JOB: t.s('View Project checkout results'),
@@ -41,6 +38,8 @@ function OutputStrings (BaseString) {
         MENU_UP: t.s('Get previous page'),
         MENU_LAST: t.s('Go to last page of available output'),
         MENU_FOLLOWING: t.s('Currently following output as it arrives. Click to unfollow'),
+        WEBHOOK_JOB_TEMPLATE: t.s('View the webhook configuration on the job template.'),
+        WEBHOOK_WORKFLOW_JOB_TEMPLATE: t.s('View the webhook configuration on the workflow job template.'),
     };
 
     ns.details = {
@@ -51,6 +50,7 @@ function OutputStrings (BaseString) {
         SHOW_LESS: t.s('Show Less'),
         SHOW_MORE: t.s('Show More'),
         UNKNOWN: t.s('Finished'),
+        WEBHOOK: t.s('Webhook'),
     };
 
     ns.labels = {
@@ -63,6 +63,7 @@ function OutputStrings (BaseString) {
         FORKS: t.s('Forks'),
         HOST_LIMIT_ERROR: t.s('Host Limit Error'),
         INSTANCE_GROUP: t.s('Instance Group'),
+        CONTAINER_GROUP: t.s('Container Group'),
         INVENTORY: t.s('Inventory'),
         INVENTORY_SCM: t.s('Source Project'),
         JOB_EXPLANATION: t.s('Explanation'),
@@ -81,6 +82,8 @@ function OutputStrings (BaseString) {
         OVERWRITE_VARS: t.s('Overwrite Vars'),
         PLAYBOOK: t.s('Playbook'),
         PROJECT: t.s('Project'),
+        SCM_BRANCH: t.s('Branch'),
+        SCM_REFSPEC: t.s('Refspec'),
         RESULT_TRACEBACK: t.s('Error Details'),
         SCM_REVISION: t.s('Revision'),
         SKIP_TAGS: t.s('Skip Tags'),

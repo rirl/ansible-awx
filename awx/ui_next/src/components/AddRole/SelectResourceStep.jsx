@@ -7,7 +7,7 @@ import PaginatedDataList from '../PaginatedDataList';
 import DataListToolbar from '../DataListToolbar';
 import CheckboxListItem from '../CheckboxListItem';
 import SelectedList from '../SelectedList';
-import { getQSConfig, parseNamespacedQueryString } from '../../util/qs';
+import { getQSConfig, parseQueryString } from '../../util/qs';
 
 class SelectResourceStep extends React.Component {
   constructor(props) {
@@ -40,10 +40,7 @@ class SelectResourceStep extends React.Component {
 
   async readResourceList() {
     const { onSearch, location } = this.props;
-    const queryParams = parseNamespacedQueryString(
-      this.qsConfig,
-      location.search
-    );
+    const queryParams = parseQueryString(this.qsConfig, location.search);
 
     this.setState({
       isLoading: true,
@@ -77,7 +74,6 @@ class SelectResourceStep extends React.Component {
       onRowClick,
       selectedLabel,
       selectedResourceRows,
-      itemName,
       i18n,
     } = this.props;
 
@@ -86,6 +82,11 @@ class SelectResourceStep extends React.Component {
         {isLoading && <div>{i18n._(t`Loading...`)}</div>}
         {isInitialized && (
           <Fragment>
+            <div>
+              {i18n._(
+                t`Choose the resources that will be receiving new roles.  You'll be able to select the roles to apply in the next step.  Note that the resources chosen here will receive all roles chosen in the next step.`
+              )}
+            </div>
             {selectedResourceRows.length > 0 && (
               <SelectedList
                 displayKey={displayKey}
@@ -98,7 +99,6 @@ class SelectResourceStep extends React.Component {
             <PaginatedDataList
               items={resources}
               itemCount={count}
-              itemName={itemName}
               qsConfig={this.qsConfig}
               toolbarColumns={columns}
               renderItem={item => (
@@ -107,12 +107,11 @@ class SelectResourceStep extends React.Component {
                   itemId={item.id}
                   key={item.id}
                   name={item[displayKey]}
+                  label={item[displayKey]}
                   onSelect={() => onRowClick(item)}
                 />
               )}
-              renderToolbar={props => (
-                <DataListToolbar {...props} alignToolbarLeft />
-              )}
+              renderToolbar={props => <DataListToolbar {...props} fillWidth />}
               showPageSizeOptions={false}
             />
           </Fragment>
@@ -131,7 +130,6 @@ SelectResourceStep.propTypes = {
   selectedLabel: PropTypes.string,
   selectedResourceRows: PropTypes.arrayOf(PropTypes.object),
   sortedColumnKey: PropTypes.string,
-  itemName: PropTypes.string,
 };
 
 SelectResourceStep.defaultProps = {
@@ -140,7 +138,6 @@ SelectResourceStep.defaultProps = {
   selectedLabel: null,
   selectedResourceRows: [],
   sortedColumnKey: 'name',
-  itemName: 'item',
 };
 
 export { SelectResourceStep as _SelectResourceStep };

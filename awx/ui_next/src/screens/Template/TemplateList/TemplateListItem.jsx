@@ -3,18 +3,52 @@ import { Link } from 'react-router-dom';
 import {
   DataListItem,
   DataListItemRow,
-  DataListItemCells,
-  DataListCheck,
+  DataListItemCells as PFDataListItemCells,
+  Tooltip,
 } from '@patternfly/react-core';
+import { t } from '@lingui/macro';
+import { withI18n } from '@lingui/react';
+import { RocketIcon } from '@patternfly/react-icons';
 
 import DataListCell from '@components/DataListCell';
+import DataListCheck from '@components/DataListCheck';
 import LaunchButton from '@components/LaunchButton';
+import ListActionButton from '@components/ListActionButton';
 import VerticalSeparator from '@components/VerticalSeparator';
+import { Sparkline } from '@components/Sparkline';
 import { toTitleCase } from '@util/strings';
+
+import styled from 'styled-components';
+
+const DataListItemCells = styled(PFDataListItemCells)`
+  display: flex;
+  @media screen and (max-width: 768px) {
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+`;
+
+const LeftDataListCell = styled(DataListCell)`
+  @media screen and (max-width: 768px) {
+    && {
+      padding-bottom: 16px;
+      flex: 1 1 100%;
+    }
+  }
+`;
+const RightDataListCell = styled(DataListCell)`
+  @media screen and (max-width: 768px) {
+    && {
+      padding-top: 0px;
+      flex: 0 0 33%;
+      padding-right: 20px;
+    }
+  }
+`;
 
 class TemplateListItem extends Component {
   render() {
-    const { template, isSelected, onSelect } = this.props;
+    const { i18n, template, isSelected, onSelect } = this.props;
     const canLaunch = template.summary_fields.user_capabilities.start;
 
     return (
@@ -31,22 +65,49 @@ class TemplateListItem extends Component {
           />
           <DataListItemCells
             dataListCells={[
-              <DataListCell key="divider">
+              <LeftDataListCell key="divider">
                 <VerticalSeparator />
                 <span>
                   <Link to={`/templates/${template.type}/${template.id}`}>
                     <b>{template.name}</b>
                   </Link>
                 </span>
-              </DataListCell>,
-              <DataListCell key="type">
+              </LeftDataListCell>,
+              <RightDataListCell
+                css="padding-left: 40px;"
+                righthalf="true"
+                key="type"
+              >
                 {toTitleCase(template.type)}
-              </DataListCell>,
-              <DataListCell lastcolumn="true" key="launch">
+              </RightDataListCell>,
+              <RightDataListCell
+                css="flex: 1;"
+                righthalf="true"
+                key="sparkline"
+              >
+                <Sparkline jobs={template.summary_fields.recent_jobs} />
+              </RightDataListCell>,
+              <RightDataListCell
+                css="max-width: 40px;"
+                righthalf="true"
+                lastcolumn="true"
+                key="launch"
+              >
                 {canLaunch && template.type === 'job_template' && (
-                  <LaunchButton templateId={template.id} />
+                  <Tooltip content={i18n._(t`Launch Template`)} position="top">
+                    <LaunchButton resource={template}>
+                      {({ handleLaunch }) => (
+                        <ListActionButton
+                          variant="plain"
+                          onClick={handleLaunch}
+                        >
+                          <RocketIcon />
+                        </ListActionButton>
+                      )}
+                    </LaunchButton>
+                  </Tooltip>
                 )}
-              </DataListCell>,
+              </RightDataListCell>,
             ]}
           />
         </DataListItemRow>
@@ -55,4 +116,4 @@ class TemplateListItem extends Component {
   }
 }
 export { TemplateListItem as _TemplateListItem };
-export default TemplateListItem;
+export default withI18n()(TemplateListItem);

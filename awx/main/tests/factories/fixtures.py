@@ -117,7 +117,7 @@ def mk_credential(name, credential_type='ssh', persisted=True):
 def mk_notification_template(name, notification_type='webhook', configuration=None, organization=None, persisted=True):
     nt = NotificationTemplate(name=name)
     nt.notification_type = notification_type
-    nt.notification_configuration = configuration or dict(url="http://localhost", headers={"Test": "Header"})
+    nt.notification_configuration = configuration or dict(url="http://localhost", username="", password="", headers={"Test": "Header"})
 
     if organization is not None:
         nt.organization = organization
@@ -154,12 +154,12 @@ def mk_job_template(name, job_type='run',
                     organization=None, inventory=None,
                     credential=None, network_credential=None,
                     cloud_credential=None, persisted=True, extra_vars='',
-                    project=None, spec=None):
+                    project=None, spec=None, webhook_service=''):
     if extra_vars:
         extra_vars = json.dumps(extra_vars)
 
     jt = JobTemplate(name=name, job_type=job_type, extra_vars=extra_vars,
-                     playbook='helloworld.yml')
+                     webhook_service=webhook_service, playbook='helloworld.yml')
 
     jt.inventory = inventory
     if jt.inventory is None:
@@ -200,11 +200,13 @@ def mk_workflow_job(status='new', workflow_job_template=None, extra_vars={},
     return job
 
 
-def mk_workflow_job_template(name, extra_vars='', spec=None, organization=None, persisted=True):
+def mk_workflow_job_template(name, extra_vars='', spec=None, organization=None, persisted=True,
+                             webhook_service=''):
     if extra_vars:
         extra_vars = json.dumps(extra_vars)
 
-    wfjt = WorkflowJobTemplate(name=name, extra_vars=extra_vars, organization=organization)
+    wfjt = WorkflowJobTemplate(name=name, extra_vars=extra_vars, organization=organization,
+                               webhook_service=webhook_service)
 
     wfjt.survey_spec = spec
     if wfjt.survey_spec:
@@ -216,7 +218,7 @@ def mk_workflow_job_template(name, extra_vars='', spec=None, organization=None, 
 
 
 def mk_workflow_job_template_node(workflow_job_template=None,
-                                  unified_job_template=None, 
+                                  unified_job_template=None,
                                   success_nodes=None,
                                   failure_nodes=None,
                                   always_nodes=None,
@@ -231,11 +233,11 @@ def mk_workflow_job_template_node(workflow_job_template=None,
     return workflow_node
 
 
-def mk_workflow_job_node(unified_job_template=None, 
+def mk_workflow_job_node(unified_job_template=None,
                          success_nodes=None,
                          failure_nodes=None,
                          always_nodes=None,
-                         workflow_job=None, 
+                         workflow_job=None,
                          job=None,
                          persisted=True):
     workflow_node = WorkflowJobNode(unified_job_template=unified_job_template,
@@ -247,4 +249,3 @@ def mk_workflow_job_node(unified_job_template=None,
     if persisted:
         workflow_node.save()
     return workflow_node
-

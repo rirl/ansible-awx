@@ -23,7 +23,7 @@
             <div class="at-List-toolbarAction">
                 <button
                     type="button"
-                    ng-click="$state.go('instanceGroups.instances.modal.add')"
+                    ng-click= "vm.addInstances()"
                     class="at-Button--add"
                     id="button-add"
                     ng-show="vm.isSuperuser"
@@ -45,24 +45,7 @@
             <at-row ng-repeat="instance in vm.instances"
                 ng-class="{'at-Row--active': (instance.id === vm.activeId)}">
                 <div class="at-Row-toggle">
-                    <div class="ScheduleToggle"
-                        ng-class="{'is-on': instance.enabled,
-                            'ScheduleToggle--disabled': vm.rowAction.toggle._disabled}">
-                        <button ng-show="instance.enabled"
-                            type="button"
-                            class="ScheduleToggle-switch is-on ng-hide"
-                            ng-click="vm.toggle(instance)"
-                            ng-disabled="vm.rowAction.toggle._disabled">
-                            {{:: vm.strings.get('ON') }}
-                        </button>
-                        <button ng-show="!instance.enabled"
-                            type="button"
-                            class="ScheduleToggle-switch"
-                            ng-click="vm.toggle(instance)"
-                            ng-disabled="vm.rowAction.toggle._disabled">
-                            {{:: vm.strings.get('OFF') }}
-                        </button>
-                    </div>
+                    <at-switch on-toggle="vm.toggle(instance)" switch-on="instance.enabled" switch-disabled="vm.rowAction.toggle._disabled"></at-switch>
                 </div>
 
                 <div class="at-Row-items at-Row-items--instances">

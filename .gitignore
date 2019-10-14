@@ -125,6 +125,7 @@ local/
 requirements/vendor
 .i18n_built
 .idea/*
+*credentials*.y*ml*
 
 # AWX python libs populated by requirements.txt
 awx/lib/.deps_built
@@ -132,4 +133,12 @@ awx/lib/site-packages
 venv/*
 use_dev_supervisor.txt
 
+
+# Ansible module tests
+awx_collection_test_venv/
+awx_collection/*.tar.gz
+awx_collection/galaxy.yml
+
 .idea/*
+*.unison.tmp
+*.#

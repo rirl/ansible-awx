@@ -98,6 +98,10 @@ describe('Controller: WorkflowAdd', () => {
             .respond(200, '');
 
         $httpBackend
+            .when('OPTIONS', '/')
+            .respond(200, '');
+
+        $httpBackend
             .whenGET(/\/static\/*/)
             .respond(200, {});
 
@@ -144,11 +148,17 @@ describe('Controller: WorkflowAdd', () => {
                 description: "This is a test description",
                 organization: undefined,
                 inventory: undefined,
+                limit: undefined,
+                scm_branch: undefined,
                 labels: undefined,
                 variables: undefined,
                 allow_simultaneous: undefined,
+                webhook_service: '',
+                webhook_credential: null,
                 ask_inventory_on_launch: false,
                 ask_variables_on_launch: false,
+                ask_limit_on_launch: false,
+                ask_scm_branch_on_launch: false,
                 extra_vars: undefined
             });
         });

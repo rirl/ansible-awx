@@ -37,6 +37,11 @@ export default ['workflowData', 'workflowResultsService', 'workflowDataOptions',
             $scope.cloud_credential_link = getLink('cloud_credential');
             $scope.network_credential_link = getLink('network_credential');
 
+            $scope.launched_by_webhook_link = null;
+            if ($scope.workflow.launch_type === 'webhook') {
+                $scope.launched_by_webhook_link = $scope.workflow_template_link;
+            }
+
             if ($scope.workflow.summary_fields.inventory) {
                 if ($scope.workflow.summary_fields.inventory.kind === 'smart') {
                     $scope.inventory_link = '/#/inventories/smart/' + $scope.workflow.inventory;
@@ -57,6 +62,7 @@ export default ['workflowData', 'workflowResultsService', 'workflowDataOptions',
                     EDIT_INVENTORY: i18n._('Edit the inventory'),
                     SOURCE_WORKFLOW_JOB: i18n._('View the source Workflow Job'),
                     TOGGLE_STDOUT_FULLSCREEN: i18n._('Expand Output'),
+                    WEBHOOK_WORKFLOW_JOB_TEMPLATE: i18n._('View the webhook configuration on the workflow job template.'),
                     STATUS: '' // re-assigned elsewhere
                 },
                 labels: {
@@ -69,7 +75,9 @@ export default ['workflowData', 'workflowResultsService', 'workflowDataOptions',
                     SLICE_TEMPLATE: i18n._('Slice Job Template'),
                     JOB_EXPLANATION: i18n._('Explanation'),
                     SOURCE_WORKFLOW_JOB: i18n._('Source Workflow'),
-                    INVENTORY: i18n._('Inventory')
+                    INVENTORY: i18n._('Inventory'),
+                    LIMIT: i18n._('Inventory Limit'),
+                    SCM_BRANCH: i18n._('SCM Branch')
                 },
                 details: {
                     HEADER: i18n._('DETAILS'),
@@ -77,6 +85,7 @@ export default ['workflowData', 'workflowResultsService', 'workflowDataOptions',
                     NOT_STARTED: i18n._('Not Started'),
                     SHOW_LESS: i18n._('Show Less'),
                     SHOW_MORE: i18n._('Show More'),
+                    WEBHOOK: i18n._('Webhook'),
                 },
                 results: {
                     TOTAL_NODES: i18n._('Total Nodes'),

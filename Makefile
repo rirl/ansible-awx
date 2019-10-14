@@ -18,6 +18,7 @@ COMPOSE_TAG ?= $(GIT_BRANCH)
 COMPOSE_HOST ?= $(shell hostname)
 
 VENV_BASE ?= /venv
+COLLECTION_VENV ?= /awx_devel/awx_collection_test_venv
 SCL_PREFIX ?=
 CELERY_SCHEDULE_FILE ?= /var/lib/awx/beat.db
 
@@ -59,14 +60,14 @@ UI_RELEASE_FLAG_FILE = awx/ui/.release_built
 I18N_FLAG_FILE = .i18n_built
 
 .PHONY: awx-link clean clean-tmp clean-venv requirements requirements_dev \
-	develop refresh adduser migrate dbchange dbshell runserver \
+	develop refresh adduser migrate dbchange runserver \
 	receiver test test_unit test_coverage coverage_html \
 	dev_build release_build release_clean sdist \
 	ui-docker-machine ui-docker ui-release ui-devel \
 	ui-test ui-deps ui-test-ci VERSION
 
 # remove ui build artifacts
-clean-ui:
+clean-ui: clean-languages
 	rm -rf awx/ui/static/
 	rm -rf awx/ui/node_modules/
 	rm -rf awx/ui/test/unit/reports/
@@ -94,21 +95,27 @@ clean-schema:
 	rm -rf schema.json
 	rm -rf reference-schema.json
 
+clean-languages:
+	rm -f $(I18N_FLAG_FILE)
+	find . -type f -regex ".*\.mo$$" -delete
+
 # Remove temporary build files, compiled Python files.
-clean: clean-ui clean-dist
+clean: clean-ui clean-api clean-dist
 	rm -rf awx/public
 	rm -rf awx/lib/site-packages
 	rm -rf awx/job_status
 	rm -rf awx/job_output
 	rm -rf reports
-	rm -f awx/awx_test.sqlite3
-	rm -rf requirements/vendor
 	rm -rf tmp
 	rm -rf $(I18N_FLAG_FILE)
 	mkdir tmp
+
+clean-api:
 	rm -rf build $(NAME)-$(VERSION) *.egg-info
 	find . -type f -regex ".*\.py[co]$$" -delete
 	find . -type d -name "__pycache__" -delete
+	rm -f awx/awx_test.sqlite3*
+	rm -rf requirements/vendor
 
 # convenience target to assert environment variables are defined
 guard-%:
@@ -242,10 +249,6 @@ migrate:
 dbchange:
 	$(MANAGEMENT_COMMAND) makemigrations
 
-# access database shell, asks for password
-dbshell:
-	sudo -u postgres psql -d awx-dev
-
 server_noattach:
 	tmux new-session -d -s awx 'exec make uwsgi'
 	tmux rename-window 'AWX'
@@ -372,7 +375,33 @@ test:
 		. $(VENV_BASE)/awx/bin/activate; \
 	fi; \
 	PYTHONDONTWRITEBYTECODE=1 py.test -p no:cacheprovider -n auto $(TEST_DIRS)
+	cd awxkit && $(VENV_BASE)/awx/bin/tox -re py2,py3
 	awx-manage check_migrations --dry-run --check  -n 'vNNN_missing_migration_file'
+
+prepare_collection_venv:
+	rm -rf $(COLLECTION_VENV)
+	mkdir $(COLLECTION_VENV)
+	ln -s /usr/lib/python2.7/site-packages/ansible $(COLLECTION_VENV)/ansible
+	$(VENV_BASE)/awx/bin/pip install --target=$(COLLECTION_VENV) git+https://github.com/ansible/tower-cli.git
+
+COLLECTION_TEST_DIRS ?= awx_collection/test/awx
+COLLECTION_PACKAGE ?= awx
+COLLECTION_NAMESPACE ?= awx
+
+test_collection:
+	@if [ "$(VENV_BASE)" ]; then \
+		. $(VENV_BASE)/awx/bin/activate; \
+	fi; \
+	PYTHONPATH=$(COLLECTION_VENV):/awx_devel/awx_collection:$PYTHONPATH py.test $(COLLECTION_TEST_DIRS)
+
+flake8_collection:
+	flake8 awx_collection/  # Different settings, in main exclude list
+
+test_collection_all: prepare_collection_venv test_collection flake8_collection
+
+build_collection:
+	ansible-playbook -i localhost, awx_collection/template_galaxy.yml -e collection_package=$(COLLECTION_PACKAGE) -e namespace_name=$(COLLECTION_NAMESPACE) -e package_version=$(VERSION)
+	ansible-galaxy collection build awx_collection --output-path=awx_collection
 
 test_unit:
 	@if [ "$(VENV_BASE)" ]; then \
@@ -515,6 +544,12 @@ jshint: $(UI_DEPS_FLAG_FILE)
 	$(NPM_BIN) run --prefix awx/ui jshint
 	$(NPM_BIN) run --prefix awx/ui lint
 
+ui-zuul-lint-and-test: $(UI_DEPS_FLAG_FILE)
+	$(NPM_BIN) run --prefix awx/ui jshint
+	$(NPM_BIN) run --prefix awx/ui lint
+	$(NPM_BIN) --prefix awx/ui run test:ci
+	$(NPM_BIN) --prefix awx/ui run unit
+
 # END UI TASKS
 # --------------------------------------
 
@@ -528,6 +563,12 @@ ui-next-lint:
 
 ui-next-test:
 	$(NPM_BIN) --prefix awx/ui_next install
+	$(NPM_BIN) run --prefix awx/ui_next test
+
+ui-next-zuul-lint-and-test:
+	$(NPM_BIN) --prefix awx/ui_next install
+	$(NPM_BIN) run --prefix awx/ui_next lint
+	$(NPM_BIN) run --prefix awx/ui_next prettier-check
 	$(NPM_BIN) run --prefix awx/ui_next test
 
 # END UI NEXT TASKS
@@ -564,8 +605,8 @@ setup-bundle-build:
 	mkdir -p $@
 
 docker-auth:
-	if [ "$(IMAGE_REPOSITORY_AUTH)" ]; then \
-		docker login -u oauth2accesstoken -p "$(IMAGE_REPOSITORY_AUTH)" $(IMAGE_REPOSITORY_BASE); \
+	@if [ "$(IMAGE_REPOSITORY_AUTH)" ]; then \
+		echo "$(IMAGE_REPOSITORY_AUTH)" | docker login -u oauth2accesstoken --password-stdin $(IMAGE_REPOSITORY_BASE); \
 	fi;
 
 # Docker isolated rampart
@@ -647,7 +688,7 @@ clean-elk:
 	docker rm tools_kibana_1
 
 psql-container:
-	docker run -it --net tools_default --rm postgres:9.6 sh -c 'exec psql -h "postgres" -p "5432" -U postgres'
+	docker run -it --net tools_default --rm postgres:10 sh -c 'exec psql -h "postgres" -p "5432" -U postgres'
 
 VERSION:
 	@echo "awx: $(VERSION)"

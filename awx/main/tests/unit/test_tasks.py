@@ -130,6 +130,8 @@ def test_send_notifications_list(mock_notifications_filter, mock_job_get, mocker
     ('VMWARE_PASSWORD', 'SECRET'),
     ('API_SECRET', 'SECRET'),
     ('CALLBACK_CONNECTION', 'amqp://tower:password@localhost:5672/tower'),
+    ('ANSIBLE_GALAXY_SERVER_PRIMARY_GALAXY_PASSWORD', 'SECRET'),
+    ('ANSIBLE_GALAXY_SERVER_PRIMARY_GALAXY_TOKEN', 'SECRET'),
 ])
 def test_safe_env_filtering(key, value):
     assert build_safe_env({key: value})[key] == tasks.HIDDEN_PASSWORD
@@ -256,6 +258,7 @@ class TestExtraVarSanitation(TestJobExecution):
 
     def test_vars_unsafe_by_default(self, job, private_data_dir):
         job.created_by = User(pk=123, username='angry-spud')
+        job.inventory = Inventory(pk=123, name='example-inv')
 
         task = tasks.RunJob()
         task.build_extra_vars_file(job, private_data_dir)
@@ -268,13 +271,14 @@ class TestExtraVarSanitation(TestJobExecution):
                        'awx_user_name', 'tower_job_launch_type',
                        'awx_project_revision',
                        'tower_project_revision', 'tower_user_name',
-                       'awx_job_launch_type']:
+                       'awx_job_launch_type',
+                       'awx_inventory_name', 'tower_inventory_name']:
             assert hasattr(extra_vars[unsafe], '__UNSAFE__')
 
         # ensure that non-strings are marked as safe
         for safe in ['awx_job_template_id', 'awx_job_id', 'awx_user_id',
                      'tower_user_id', 'tower_job_template_id',
-                     'tower_job_id']:
+                     'tower_job_id', 'awx_inventory_id', 'tower_inventory_id']:
             assert not hasattr(extra_vars[safe], '__UNSAFE__')
 
 
@@ -359,15 +363,16 @@ class TestExtraVarSanitation(TestJobExecution):
 class TestGenericRun():
 
     def test_generic_failure(self, patch_Job):
-        job = Job(status='running', inventory=Inventory())
+        job = Job(status='running', inventory=Inventory(), project=Project())
         job.websocket_emit_status = mock.Mock()
 
         task = tasks.RunJob()
         task.update_model = mock.Mock(return_value=job)
         task.build_private_data_files = mock.Mock(side_effect=OSError())
 
-        with pytest.raises(Exception):
-            task.run(1)
+        with mock.patch('awx.main.tasks.copy_tree'):
+            with pytest.raises(Exception):
+                task.run(1)
 
         update_model_call = task.update_model.call_args[1]
         assert 'OSError' in update_model_call['result_traceback']
@@ -384,8 +389,9 @@ class TestGenericRun():
         task.update_model = mock.Mock(wraps=update_model_wrapper)
         task.build_private_data_files = mock.Mock()
 
-        with pytest.raises(Exception):
-            task.run(1)
+        with mock.patch('awx.main.tasks.copy_tree'):
+            with pytest.raises(Exception):
+                task.run(1)
 
         for c in [
             mock.call(1, status='running', start_args=''),
@@ -432,6 +438,7 @@ class TestGenericRun():
         job = Job(project=Project(), inventory=Inventory())
         task = tasks.RunJob()
         task.should_use_proot = lambda instance: True
+        task.instance = job
 
         private_data_dir = '/foo'
         cwd = '/bar'
@@ -442,7 +449,7 @@ class TestGenericRun():
 
         process_isolation_params = task.build_params_process_isolation(job, private_data_dir, cwd)
         assert True is process_isolation_params['process_isolation']
-        assert settings.AWX_PROOT_BASE_PATH == process_isolation_params['process_isolation_path'], \
+        assert process_isolation_params['process_isolation_path'].startswith(settings.AWX_PROOT_BASE_PATH), \
             "Directory where a temp directory will be created for the remapping to take place"
         assert private_data_dir in process_isolation_params['process_isolation_show_paths'], \
             "The per-job private data dir should be in the list of directories the user can see."
@@ -463,6 +470,36 @@ class TestGenericRun():
         assert '/ANSIBLE_VENV_PATH' in process_isolation_params['process_isolation_ro_paths']
         assert '/AWX_VENV_PATH' in process_isolation_params['process_isolation_ro_paths']
         assert 2 == len(process_isolation_params['process_isolation_ro_paths'])
+
+
+    @mock.patch('os.makedirs')
+    def test_build_params_resource_profiling(self, os_makedirs):
+        job = Job(project=Project(), inventory=Inventory())
+        task = tasks.RunJob()
+        task.should_use_resource_profiling = lambda job: True
+        task.instance = job
+
+        resource_profiling_params = task.build_params_resource_profiling(task.instance, '/fake_private_data_dir')
+        assert resource_profiling_params['resource_profiling'] is True
+        assert resource_profiling_params['resource_profiling_base_cgroup'] == 'ansible-runner'
+        assert resource_profiling_params['resource_profiling_cpu_poll_interval'] == '0.25'
+        assert resource_profiling_params['resource_profiling_memory_poll_interval'] == '0.25'
+        assert resource_profiling_params['resource_profiling_pid_poll_interval'] == '0.25'
+        assert resource_profiling_params['resource_profiling_results_dir'] == '/fake_private_data_dir/artifacts/playbook_profiling'
+
+
+    @pytest.mark.parametrize("scenario, profiling_enabled", [
+                             ('global_setting', True),
+                             ('default', False)])
+    def test_should_use_resource_profiling(self, scenario, profiling_enabled, settings):
+        job = Job(project=Project(), inventory=Inventory())
+        task = tasks.RunJob()
+        task.instance = job
+
+        if scenario == 'global_setting':
+            settings.AWX_RESOURCE_PROFILING_ENABLED = True
+
+        assert task.should_use_resource_profiling(task.instance) == profiling_enabled
 
     def test_created_by_extra_vars(self):
         job = Job(created_by=User(pk=123, username='angry-spud'))
@@ -1683,6 +1720,7 @@ class TestProjectUpdateCredentials(TestJobExecution):
     def test_process_isolation_exposes_projects_root(self, private_data_dir, project_update):
         task = tasks.RunProjectUpdate()
         task.revision_path = 'foobar'
+        task.instance = project_update
         ssh = CredentialType.defaults['ssh']()
         project_update.scm_type = 'git'
         project_update.credential = Credential(
@@ -1699,8 +1737,6 @@ class TestProjectUpdateCredentials(TestJobExecution):
 
         call_args, _ = task._write_extra_vars_file.call_args_list[0]
         _, extra_vars = call_args
-
-        assert extra_vars["scm_revision_output"] == 'foobar'
 
     def test_username_and_password_auth(self, project_update, scm_type):
         task = tasks.RunProjectUpdate()

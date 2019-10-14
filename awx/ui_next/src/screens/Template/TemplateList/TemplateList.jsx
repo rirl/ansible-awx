@@ -1,21 +1,25 @@
 import React, { Component } from 'react';
-import { withRouter } from 'react-router-dom';
+import { withRouter, Link } from 'react-router-dom';
 import { withI18n } from '@lingui/react';
-import { t } from '@lingui/macro';
-import { Card, PageSection, PageSectionVariants } from '@patternfly/react-core';
 
+import { t } from '@lingui/macro';
 import {
-  JobTemplatesAPI,
-  UnifiedJobTemplatesAPI,
-  WorkflowJobTemplatesAPI,
-} from '@api';
+  Card,
+  PageSection,
+  Dropdown,
+  DropdownItem,
+  DropdownPosition,
+} from '@patternfly/react-core';
+
+import { JobTemplatesAPI, WorkflowJobTemplatesAPI } from '@api';
 import AlertModal from '@components/AlertModal';
 import DatalistToolbar from '@components/DataListToolbar';
 import ErrorDetail from '@components/ErrorDetail';
 import PaginatedDataList, {
   ToolbarDeleteButton,
+  ToolbarAddButton,
 } from '@components/PaginatedDataList';
-import { getQSConfig, parseNamespacedQueryString } from '@util/qs';
+import { getQSConfig, parseQueryString } from '@util/qs';
 
 import TemplateListItem from './TemplateListItem';
 
@@ -23,7 +27,7 @@ import TemplateListItem from './TemplateListItem';
 // workflow_job_template so the params sent to the API match what the api expects.
 const QS_CONFIG = getQSConfig('template', {
   page: 1,
-  page_size: 5,
+  page_size: 20,
   order_by: 'name',
   type: 'job_template,workflow_job_template',
 });
@@ -39,12 +43,15 @@ class TemplatesList extends Component {
       selected: [],
       templates: [],
       itemCount: 0,
+      isAddOpen: false,
     };
+
     this.loadTemplates = this.loadTemplates.bind(this);
     this.handleSelectAll = this.handleSelectAll.bind(this);
     this.handleSelect = this.handleSelect.bind(this);
     this.handleTemplateDelete = this.handleTemplateDelete.bind(this);
     this.handleDeleteErrorClose = this.handleDeleteErrorClose.bind(this);
+    this.handleAddToggle = this.handleAddToggle.bind(this);
   }
 
   componentDidMount() {
@@ -53,9 +60,14 @@ class TemplatesList extends Component {
 
   componentDidUpdate(prevProps) {
     const { location } = this.props;
+
     if (location !== prevProps.location) {
       this.loadTemplates();
     }
+  }
+
+  componentWillUnmount() {
+    document.removeEventListener('click', this.handleAddToggle, false);
   }
 
   handleDeleteErrorClose() {
@@ -74,6 +86,21 @@ class TemplatesList extends Component {
       this.setState({ selected: selected.filter(s => s.id !== template.id) });
     } else {
       this.setState({ selected: selected.concat(template) });
+    }
+  }
+
+  handleAddToggle(e) {
+    const { isAddOpen } = this.state;
+    document.addEventListener('click', this.handleAddToggle, false);
+
+    if (this.node && this.node.contains(e.target) && isAddOpen) {
+      document.removeEventListener('click', this.handleAddToggle, false);
+      this.setState({ isAddOpen: false });
+    } else if (this.node && this.node.contains(e.target) && !isAddOpen) {
+      this.setState({ isAddOpen: true });
+    } else {
+      this.setState({ isAddOpen: false });
+      document.removeEventListener('click', this.handleAddToggle, false);
     }
   }
 
@@ -103,14 +130,35 @@ class TemplatesList extends Component {
 
   async loadTemplates() {
     const { location } = this.props;
-    const params = parseNamespacedQueryString(QS_CONFIG, location.search);
+    const { actions: cachedActions } = this.state;
+    const params = parseQueryString(QS_CONFIG, location.search);
+
+    let optionsPromise;
+    if (cachedActions) {
+      optionsPromise = Promise.resolve({ data: { actions: cachedActions } });
+    } else {
+      optionsPromise = JobTemplatesAPI.readOptions();
+    }
+
+    const promises = Promise.all([
+      JobTemplatesAPI.read(params),
+      optionsPromise,
+    ]);
 
     this.setState({ contentError: null, hasContentLoading: true });
+
     try {
-      const {
-        data: { count, results },
-      } = await UnifiedJobTemplatesAPI.read(params);
+      const [
+        {
+          data: { count, results },
+        },
+        {
+          data: { actions },
+        },
+      ] = await promises;
+
       this.setState({
+        actions,
         itemCount: count,
         templates: results,
         selected: [],
@@ -130,22 +178,31 @@ class TemplatesList extends Component {
       templates,
       itemCount,
       selected,
+      isAddOpen,
+      actions,
     } = this.state;
     const { match, i18n } = this.props;
-    const isAllSelected = selected.length === templates.length;
-    const { medium } = PageSectionVariants;
+    const canAdd =
+      actions && Object.prototype.hasOwnProperty.call(actions, 'POST');
+    const isAllSelected =
+      selected.length === templates.length && selected.length > 0;
     return (
-      <PageSection variant={medium}>
+      <PageSection>
         <Card>
           <PaginatedDataList
-            error={contentError}
+            contentError={contentError}
             hasContentLoading={hasContentLoading}
             items={templates}
             itemCount={itemCount}
-            itemName={i18n._(t`Template`)}
+            pluralizedItemName="Templates"
             qsConfig={QS_CONFIG}
             toolbarColumns={[
-              { name: i18n._(t`Name`), key: 'name', isSortable: true },
+              {
+                name: i18n._(t`Name`),
+                key: 'name',
+                isSortable: true,
+                isSearchable: true,
+              },
               {
                 name: i18n._(t`Modified`),
                 key: 'modified',
@@ -166,13 +223,43 @@ class TemplatesList extends Component {
                 showExpandCollapse
                 isAllSelected={isAllSelected}
                 onSelectAll={this.handleSelectAll}
+                qsConfig={QS_CONFIG}
                 additionalControls={[
                   <ToolbarDeleteButton
                     key="delete"
                     onDelete={this.handleTemplateDelete}
                     itemsToDelete={selected}
-                    itemName={i18n._(t`Template`)}
+                    pluralizedItemName="Templates"
                   />,
+                  canAdd && (
+                    <div
+                      ref={node => {
+                        this.node = node;
+                      }}
+                      key="add"
+                    >
+                      <Dropdown
+                        isPlain
+                        isOpen={isAddOpen}
+                        position={DropdownPosition.right}
+                        toggle={
+                          <ToolbarAddButton onClick={this.handleAddToggle} />
+                        }
+                        dropdownItems={[
+                          <DropdownItem key="job">
+                            <Link to={`${match.url}/job_template/add/`}>
+                              {i18n._(t`Job Template`)}
+                            </Link>
+                          </DropdownItem>,
+                          <DropdownItem key="workflow">
+                            <Link to={`${match.url}_workflow/add/`}>
+                              {i18n._(t`Workflow Template`)}
+                            </Link>
+                          </DropdownItem>,
+                        ]}
+                      />
+                    </div>
+                  ),
                 ]}
               />
             )}
@@ -186,6 +273,35 @@ class TemplatesList extends Component {
                 isSelected={selected.some(row => row.id === template.id)}
               />
             )}
+            emptyStateControls={
+              canAdd && (
+                <div
+                  ref={node => {
+                    this.node = node;
+                  }}
+                  key="add"
+                >
+                  <Dropdown
+                    isPlain
+                    isOpen={isAddOpen}
+                    position={DropdownPosition.right}
+                    toggle={<ToolbarAddButton onClick={this.handleAddToggle} />}
+                    dropdownItems={[
+                      <DropdownItem key="job">
+                        <Link to={`${match.url}/job_template/add/`}>
+                          {i18n._(t`Job Template`)}
+                        </Link>
+                      </DropdownItem>,
+                      <DropdownItem key="workflow">
+                        <Link to={`${match.url}_workflow/add/`}>
+                          {i18n._(t`Workflow Template`)}
+                        </Link>
+                      </DropdownItem>,
+                    ]}
+                  />
+                </div>
+              )
+            }
           />
         </Card>
         <AlertModal
@@ -194,7 +310,7 @@ class TemplatesList extends Component {
           title={i18n._(t`Error!`)}
           onClose={this.handleDeleteErrorClose}
         >
-          {i18n._(t`Failed to delete one or more template.`)}
+          {i18n._(t`Failed to delete one or more templates.`)}
           <ErrorDetail error={deletionError} />
         </AlertModal>
       </PageSection>

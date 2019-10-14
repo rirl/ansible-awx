@@ -10,8 +10,8 @@ from django.utils.translation import ugettext_lazy as _
 
 # Django REST Framework
 from rest_framework.fields import (  # noqa
-    BooleanField, CharField, ChoiceField, DictField, EmailField, IntegerField,
-    ListField, NullBooleanField
+    BooleanField, CharField, ChoiceField, DictField, EmailField,
+    IntegerField, ListField, NullBooleanField
 )
 
 logger = logging.getLogger('awx.conf.fields')
@@ -121,11 +121,14 @@ class URLField(CharField):
 
     def __init__(self, **kwargs):
         schemes = kwargs.pop('schemes', None)
+        regex = kwargs.pop('regex', None)
         self.allow_plain_hostname = kwargs.pop('allow_plain_hostname', False)
         super(URLField, self).__init__(**kwargs)
         validator_kwargs = dict(message=_('Enter a valid URL'))
         if schemes is not None:
             validator_kwargs['schemes'] = schemes
+        if regex is not None:
+            validator_kwargs['regex'] = regex
         self.validators.append(URLValidator(**validator_kwargs))
 
     def to_representation(self, value):

@@ -15,6 +15,8 @@ import Search from '../Search';
 import Sort from '../Sort';
 import VerticalSeparator from '../VerticalSeparator';
 
+import { QSConfig } from '@types';
+
 const AWXToolbar = styled.div`
   --awx-toolbar--BackgroundColor: var(--pf-global--BackgroundColor--light-100);
   --awx-toolbar--BorderColor: #ebebeb;
@@ -34,7 +36,7 @@ const AWXToolbar = styled.div`
 
 const Toolbar = styled(PFToolbar)`
   flex-grow: 1;
-  margin-left: ${props => (props.marginleft ? '0' : '20px')};
+  margin-left: 20px;
   margin-right: 20px;
 `;
 
@@ -46,22 +48,27 @@ const ToolbarGroup = styled(PFToolbarGroup)`
 
 const ColumnLeft = styled.div`
   display: flex;
-  flex-basis: 100%;
+  flex-basis: ${props => (props.fillWidth ? 'auto' : '100%')};
+  flex-grow: ${props => (props.fillWidth ? '1' : '0')};
   justify-content: flex-start;
   align-items: center;
   padding: 10px 0 8px 0;
 
   @media screen and (min-width: 980px) {
-    flex-basis: 50%;
+    flex-basis: ${props => (props.fillWidth ? 'auto' : '50%')};
   }
 `;
 
-const ColumnRight = styled(ColumnLeft)`
+const ColumnRight = styled.div`
+  display: flex;
+  flex-basis: ${props => (props.fillWidth ? 'auto' : '100%')};
+  flex-grow: 0;
+  justify-content: flex-start;
+  align-items: center;
   padding: 8px 0 10px 0;
 
   @media screen and (min-width: 980px) {
-    margin-left: 0;
-    padding: 10px 0 8px 0;
+    flex-basis: ${props => (props.fillWidth ? 'auto' : '50%')};
   }
 `;
 
@@ -83,7 +90,7 @@ class DataListToolbar extends React.Component {
       showSelectAll,
       isAllSelected,
       isCompact,
-      noLeftMargin,
+      fillWidth,
       onSort,
       onSearch,
       onCompact,
@@ -93,18 +100,19 @@ class DataListToolbar extends React.Component {
       sortedColumnKey,
       additionalControls,
       i18n,
+      qsConfig,
     } = this.props;
 
     const showExpandCollapse = onCompact && onExpand;
     return (
       <AWXToolbar>
-        <Toolbar marginleft={noLeftMargin ? 1 : 0}>
-          <ColumnLeft>
+        <Toolbar css={fillWidth ? 'margin-right: 0; margin-left: 0' : ''}>
+          <ColumnLeft fillWidth={fillWidth}>
             {showSelectAll && (
               <Fragment>
                 <ToolbarItem>
                   <Checkbox
-                    checked={isAllSelected}
+                    isChecked={isAllSelected}
                     onChange={onSelectAll}
                     aria-label={i18n._(t`Select all`)}
                     id="select-all"
@@ -115,6 +123,7 @@ class DataListToolbar extends React.Component {
             )}
             <ToolbarItem css="flex-grow: 1;">
               <Search
+                qsConfig={qsConfig}
                 columns={columns}
                 onSearch={onSearch}
                 sortedColumnKey={sortedColumnKey}
@@ -122,7 +131,7 @@ class DataListToolbar extends React.Component {
             </ToolbarItem>
             <VerticalSeparator />
           </ColumnLeft>
-          <ColumnRight>
+          <ColumnRight fillWidth={fillWidth}>
             <ToolbarItem>
               <Sort
                 columns={columns}
@@ -155,11 +164,12 @@ class DataListToolbar extends React.Component {
 }
 
 DataListToolbar.propTypes = {
+  qsConfig: QSConfig.isRequired,
   columns: PropTypes.arrayOf(PropTypes.object).isRequired,
   showSelectAll: PropTypes.bool,
   isAllSelected: PropTypes.bool,
   isCompact: PropTypes.bool,
-  noLeftMargin: PropTypes.bool,
+  fillWidth: PropTypes.bool,
   onCompact: PropTypes.func,
   onExpand: PropTypes.func,
   onSearch: PropTypes.func,
@@ -174,7 +184,7 @@ DataListToolbar.defaultProps = {
   showSelectAll: false,
   isAllSelected: false,
   isCompact: false,
-  noLeftMargin: false,
+  fillWidth: false,
   onCompact: null,
   onExpand: null,
   onSearch: null,

@@ -11,9 +11,9 @@ from django.urls import resolve
 from django.contrib.auth.models import User
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.backends.sqlite3.base import SQLiteCursorWrapper
-from jsonbfield.fields import JSONField
 
 # AWX
+from awx.main.fields import JSONBField
 from awx.main.models.projects import Project
 from awx.main.models.ha import Instance
 
@@ -204,6 +204,13 @@ def organization(instance):
 
 
 @pytest.fixture
+def credentialtype_kube():
+    kube = CredentialType.defaults['kubernetes_bearer_token']()
+    kube.save()
+    return kube
+
+
+@pytest.fixture
 def credentialtype_ssh():
     ssh = CredentialType.defaults['ssh']()
     ssh.save()
@@ -337,6 +344,12 @@ def other_external_credential(credentialtype_external):
 
 
 @pytest.fixture
+def kube_credential(credentialtype_kube):
+    return Credential.objects.create(credential_type=credentialtype_kube, name='kube-cred',
+                                     inputs={'host': 'my.cluster', 'bearer_token': 'my-token', 'verify_ssl': False})
+
+
+@pytest.fixture
 def inventory(organization):
     return organization.inventories.create(name="test-inv")
 
@@ -385,7 +398,9 @@ def notification_template(organization):
                                                organization=organization,
                                                notification_type="webhook",
                                                notification_configuration=dict(url="http://localhost",
-                                                                               headers={"Test": "Header"}))
+                                                                               username="",
+                                                                               password="",
+                                                                               headers={"Test": "Header",}))
 
 
 @pytest.fixture
@@ -737,7 +752,7 @@ def get_db_prep_save(self, value, connection, **kwargs):
 
 @pytest.fixture
 def monkeypatch_jsonbfield_get_db_prep_save(mocker):
-    JSONField.get_db_prep_save = get_db_prep_save
+    JSONBField.get_db_prep_save = get_db_prep_save
 
 
 @pytest.fixture

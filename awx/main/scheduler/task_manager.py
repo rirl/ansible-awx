@@ -23,6 +23,7 @@ from awx.main.models import (
     Project,
     ProjectUpdate,
     SystemJob,
+    WorkflowApproval,
     WorkflowJob,
     WorkflowJobTemplate
 )
@@ -250,6 +251,8 @@ class TaskManager():
                 task.controller_node = controller_node
                 logger.debug('Submitting isolated {} to queue {} controlled by {}.'.format(
                              task.log_format, task.execution_node, controller_node))
+            elif rampart_group.is_containerized:
+                task.instance_group = rampart_group
             else:
                 task.instance_group = rampart_group
                 if instance is not None:
@@ -446,7 +449,7 @@ class TaskManager():
             for rampart_group in preferred_instance_groups:
                 if idle_instance_that_fits is None:
                     idle_instance_that_fits = rampart_group.find_largest_idle_instance()
-                if self.get_remaining_capacity(rampart_group.name) <= 0:
+                if not rampart_group.is_containerized and self.get_remaining_capacity(rampart_group.name) <= 0:
                     logger.debug("Skipping group {} capacity <= 0".format(rampart_group.name))
                     continue
 
@@ -455,10 +458,11 @@ class TaskManager():
                     logger.debug("Starting dependent {} in group {} instance {}".format(
                                  task.log_format, rampart_group.name, execution_instance.hostname))
                 elif not execution_instance and idle_instance_that_fits:
-                    execution_instance = idle_instance_that_fits
-                    logger.debug("Starting dependent {} in group {} on idle instance {}".format(
-                                 task.log_format, rampart_group.name, execution_instance.hostname))
-                if execution_instance:
+                    if not rampart_group.is_containerized:
+                        execution_instance = idle_instance_that_fits
+                        logger.debug("Starting dependent {} in group {} on idle instance {}".format(
+                                     task.log_format, rampart_group.name, execution_instance.hostname))
+                if execution_instance or rampart_group.is_containerized:
                     self.graph[rampart_group.name]['graph'].add_job(task)
                     tasks_to_fail = [t for t in dependency_tasks if t != task]
                     tasks_to_fail += [dependent_task]
@@ -491,10 +495,16 @@ class TaskManager():
                 self.start_task(task, None, task.get_jobs_fail_chain(), None)
                 continue
             for rampart_group in preferred_instance_groups:
+                if task.can_run_containerized and rampart_group.is_containerized:
+                    self.graph[rampart_group.name]['graph'].add_job(task)
+                    self.start_task(task, rampart_group, task.get_jobs_fail_chain(), None)
+                    found_acceptable_queue = True
+                    break
+
                 if idle_instance_that_fits is None:
                     idle_instance_that_fits = rampart_group.find_largest_idle_instance()
                 remaining_capacity = self.get_remaining_capacity(rampart_group.name)
-                if remaining_capacity <= 0:
+                if not rampart_group.is_containerized and self.get_remaining_capacity(rampart_group.name) <= 0:
                     logger.debug("Skipping group {}, remaining_capacity {} <= 0".format(
                                  rampart_group.name, remaining_capacity))
                     continue
@@ -504,10 +514,11 @@ class TaskManager():
                     logger.debug("Starting {} in group {} instance {} (remaining_capacity={})".format(
                                  task.log_format, rampart_group.name, execution_instance.hostname, remaining_capacity))
                 elif not execution_instance and idle_instance_that_fits:
-                    execution_instance = idle_instance_that_fits
-                    logger.debug("Starting {} in group {} instance {} (remaining_capacity={})".format(
-                                 task.log_format, rampart_group.name, execution_instance.hostname, remaining_capacity))
-                if execution_instance:
+                    if not rampart_group.is_containerized:
+                        execution_instance = idle_instance_that_fits
+                        logger.debug("Starting {} in group {} instance {} (remaining_capacity={})".format(
+                                     task.log_format, rampart_group.name, execution_instance.hostname, remaining_capacity))
+                if execution_instance or rampart_group.is_containerized:
                     self.graph[rampart_group.name]['graph'].add_job(task)
                     self.start_task(task, rampart_group, task.get_jobs_fail_chain(), execution_instance)
                     found_acceptable_queue = True
@@ -517,6 +528,25 @@ class TaskManager():
                                  rampart_group.name, task.log_format, task.task_impact))
             if not found_acceptable_queue:
                 logger.debug("{} couldn't be scheduled on graph, waiting for next cycle".format(task.log_format))
+
+    def timeout_approval_node(self):
+        workflow_approvals = WorkflowApproval.objects.filter(status='pending')
+        now = tz_now()
+        for task in workflow_approvals:
+            approval_timeout_seconds = timedelta(seconds=task.timeout)
+            if task.timeout == 0:
+                continue
+            if (now - task.created) >= approval_timeout_seconds:
+                timeout_message = _(
+                    "The approval node {name} ({pk}) has expired after {timeout} seconds."
+                ).format(name=task.name, pk=task.pk, timeout=task.timeout)
+                logger.warn(timeout_message)
+                task.timed_out = True
+                task.status = 'failed'
+                task.send_approval_notification('timed_out')
+                task.websocket_emit_status(task.status)
+                task.job_explanation = timeout_message
+                task.save(update_fields=['status', 'job_explanation', 'timed_out'])
 
     def calculate_capacity_consumed(self, tasks):
         self.graph = InstanceGroup.objects.capacity_values(tasks=tasks, graph=self.graph)
@@ -572,6 +602,8 @@ class TaskManager():
                     logger.debug('Removed %s from job spawning consideration.', workflow_job.log_format)
 
             self.spawn_workflow_graph_jobs(running_workflow_tasks)
+
+            self.timeout_approval_node()
 
             self.process_tasks(all_sorted_tasks)
         return finished_wfjs

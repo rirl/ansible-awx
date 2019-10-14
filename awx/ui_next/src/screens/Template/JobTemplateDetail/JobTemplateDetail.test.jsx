@@ -56,6 +56,21 @@ describe('<JobTemplateDetail />', () => {
     );
     expect(wrapper).toMatchSnapshot();
   });
+
+  test('Can load with missing summary fields', async done => {
+    const mockTemplate = { ...template };
+    mockTemplate.summary_fields = { user_capabilities: {} };
+
+    const wrapper = mountWithContexts(
+      <JobTemplateDetail template={mockTemplate} />
+    );
+    await waitForElement(
+      wrapper,
+      'Detail[label="Description"]',
+      el => el.length === 1
+    );
+    done();
+  });
   test('When component mounts API is called to get instance groups', async done => {
     const wrapper = mountWithContexts(
       <JobTemplateDetail template={template} />
@@ -113,19 +128,21 @@ describe('<JobTemplateDetail />', () => {
     done();
   });
 
-  test('Credential type is Cloud if credential.kind is null', async done => {
+  test('should render CredentialChip', () => {
     template.summary_fields.credentials = [{ id: 1, name: 'cred', kind: null }];
     const wrapper = mountWithContexts(
       <JobTemplateDetail template={template} />
     );
-    const jobTemplateDetail = wrapper.find('JobTemplateDetail');
-    jobTemplateDetail.setState({
-      instanceGroups: mockInstanceGroups.data.results,
+    wrapper.find('JobTemplateDetail').setState({
+      instanceGroups: mockInstanceGroups,
       hasContentLoading: false,
       contentError: false,
     });
-    const cred = wrapper.find('strong.credential');
-    expect(cred.text()).toContain('Cloud:');
-    done();
+
+    const chip = wrapper.find('CredentialChip');
+    expect(chip).toHaveLength(1);
+    expect(chip.prop('credential')).toEqual(
+      template.summary_fields.credentials[0]
+    );
   });
 });

@@ -67,6 +67,10 @@ DATABASES = {
     }
 }
 
+AWX_CONTAINER_GROUP_DEFAULT_LAUNCH_TIMEOUT = 10
+AWX_CONTAINER_GROUP_DEFAULT_NAMESPACE = 'default'
+AWX_CONTAINER_GROUP_DEFAULT_IMAGE = 'ansible/ansible-runner'
+
 # Internationalization
 # https://docs.djangoproject.com/en/dev/topics/i18n/
 #
@@ -338,7 +342,8 @@ OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = 'main.OAuth2AccessToken'
 OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = 'oauth2_provider.RefreshToken'
 
 OAUTH2_PROVIDER = {'ACCESS_TOKEN_EXPIRE_SECONDS': 31536000000,
-                   'AUTHORIZATION_CODE_EXPIRE_SECONDS': 600}
+                   'AUTHORIZATION_CODE_EXPIRE_SECONDS': 600,
+                   'REFRESH_TOKEN_EXPIRE_SECONDS': 2628000}
 ALLOW_OAUTH2_FOR_EXTERNAL_USERS = False
 
 # LDAP server (default to None to skip using LDAP authentication).
@@ -403,6 +408,11 @@ EMAIL_HOST_USER = ''
 EMAIL_HOST_PASSWORD = ''
 EMAIL_USE_TLS = False
 
+# Default to skipping isolated host key checking (the initial connection will
+# hang on an interactive "The authenticity of host example.org can't be
+# established" message)
+AWX_ISOLATED_HOST_KEY_CHECKING = False
+
 # The number of seconds to sleep between status checks for jobs running on isolated nodes
 AWX_ISOLATED_CHECK_INTERVAL = 30
 
@@ -460,7 +470,7 @@ CELERYBEAT_SCHEDULE = {
     },
     'gather_analytics': {
         'task': 'awx.main.tasks.gather_analytics',
-        'schedule': crontab(hour=0)
+        'schedule': crontab(hour='*/6')
     },
     'task_manager': {
         'task': 'awx.main.scheduler.tasks.run_task_manager',
@@ -599,10 +609,35 @@ AWX_REBUILD_SMART_MEMBERSHIP = False
 # By default, allow arbitrary Jinja templating in extra_vars defined on a Job Template
 ALLOW_JINJA_IN_EXTRA_VARS = 'template'
 
+# Run project updates with extra verbosity
+PROJECT_UPDATE_VVV = False
+
 # Enable dynamically pulling roles from a requirement.yml file
 # when updating SCM projects
 # Note: This setting may be overridden by database settings.
 AWX_ROLES_ENABLED = True
+
+# Enable dynamically pulling collections from a requirement.yml file
+# when updating SCM projects
+# Note: This setting may be overridden by database settings.
+AWX_COLLECTIONS_ENABLED = True
+
+# Settings for primary galaxy server, should be set in the UI
+PRIMARY_GALAXY_URL = ''
+PRIMARY_GALAXY_USERNAME = ''
+PRIMARY_GALAXY_TOKEN = ''
+PRIMARY_GALAXY_PASSWORD = ''
+PRIMARY_GALAXY_AUTH_URL = ''
+# Settings for the fallback galaxy server(s), normally this is the
+# actual Ansible Galaxy site.
+# server options: 'id', 'url', 'username', 'password', 'token', 'auth_url'
+# To not use any fallback servers set this to []
+FALLBACK_GALAXY_SERVERS = [
+    {
+        'id': 'galaxy',
+        'url': 'https://galaxy.ansible.com'
+    }
+]
 
 # Enable bubblewrap support for running jobs (playbook runs only).
 # Note: This setting may be overridden by database settings.
@@ -619,14 +654,23 @@ AWX_PROOT_HIDE_PATHS = []
 # Note: This setting may be overridden by database settings.
 AWX_PROOT_SHOW_PATHS = []
 
-# Number of jobs to show as part of the job template history
-AWX_JOB_TEMPLATE_HISTORY = 10
-
 # The directory in which Tower will create new temporary directories for job
 # execution and isolation (such as credential files and custom
 # inventory scripts).
 # Note: This setting may be overridden by database settings.
 AWX_PROOT_BASE_PATH = "/tmp"
+
+# Disable resource profiling by default
+AWX_RESOURCE_PROFILING_ENABLED = False
+
+# Interval (in seconds) between polls for cpu usage
+AWX_RESOURCE_PROFILING_CPU_POLL_INTERVAL = '0.25'
+
+# Interval (in seconds) between polls for memory usage
+AWX_RESOURCE_PROFILING_MEMORY_POLL_INTERVAL = '0.25'
+
+# Interval (in seconds) between polls for PID count
+AWX_RESOURCE_PROFILING_PID_POLL_INTERVAL = '0.25'
 
 # User definable ansible callback plugins
 # Note: This setting may be overridden by database settings.
@@ -1096,6 +1140,14 @@ LOGGING = {
             'handlers': ['console', 'file', 'tower_warnings'],
             'level': 'WARNING',
         },
+        'celery': {  # for celerybeat connection warnings
+            'handlers': ['console', 'file', 'tower_warnings'],
+            'level': 'WARNING',
+        },
+        'kombu': {
+            'handlers': ['console', 'file', 'tower_warnings'],
+            'level': 'WARNING',
+        },
         'rest_framework.request': {
             'handlers': ['console', 'file', 'tower_warnings'],
             'level': 'WARNING',
@@ -1174,6 +1226,8 @@ LOGGING = {
         },
     }
 }
+LOG_AGGREGATOR_AUDIT = False
+
 # Apply coloring to messages logged to the console
 COLOR_LOGS = False
 

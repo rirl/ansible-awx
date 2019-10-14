@@ -47,6 +47,10 @@ export default ['i18n', function(i18n) {
                 type: 'text',
                 reset: 'ACCESS_TOKEN_EXPIRE_SECONDS'
             },
+            REFRESH_TOKEN_EXPIRE_SECONDS: {
+                type: 'text',
+                reset: 'REFRESH_TOKEN_EXPIRE_SECONDS'
+            },
             AUTHORIZATION_CODE_EXPIRE_SECONDS: {
                 type: 'text',
                 reset: 'AUTHORIZATION_CODE_EXPIRE_SECONDS'
@@ -61,6 +65,19 @@ export default ['i18n', function(i18n) {
             },
             INSIGHTS_TRACKING_STATE: {
                 type: 'toggleSwitch'
+            },
+            REDHAT_USERNAME: {
+                type: 'text',
+                reset: 'REDHAT_USERNAME',
+            },
+            REDHAT_PASSWORD: {
+                type: 'sensitive',
+                hasShowInputButton: true,
+                reset: 'REDHAT_PASSWORD',
+            },
+            AUTOMATION_ANALYTICS_URL: {
+                type: 'text',
+                reset: 'AUTOMATION_ANALYTICS_URL',
             }
         },
 

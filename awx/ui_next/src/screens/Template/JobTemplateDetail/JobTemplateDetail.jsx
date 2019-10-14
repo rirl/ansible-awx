@@ -13,11 +13,12 @@ import styled from 'styled-components';
 import { t } from '@lingui/macro';
 
 import ContentError from '@components/ContentError';
+import LaunchButton from '@components/LaunchButton';
 import ContentLoading from '@components/ContentLoading';
-import { ChipGroup, Chip } from '@components/Chip';
+import { ChipGroup, Chip, CredentialChip } from '@components/Chip';
 import { DetailList, Detail } from '@components/DetailList';
+import { formatDateString } from '@util/dates';
 import { JobTemplatesAPI } from '@api';
-import { toTitleCase } from '@util/strings';
 
 const ButtonGroup = styled.div`
   display: flex;
@@ -69,12 +70,10 @@ class JobTemplateDetail extends Component {
         job_slice_count,
         job_tags,
         job_type,
-        inventory,
         name,
         limit,
         modified,
         playbook,
-        project,
         skip_tags,
         timeout,
         summary_fields,
@@ -83,9 +82,11 @@ class JobTemplateDetail extends Component {
         verbosity,
       },
       hasTemplateLoading,
+      template,
       i18n,
       match,
     } = this.props;
+    const canLaunch = summary_fields.user_capabilities.start;
     const { instanceGroups, hasContentLoading, contentError } = this.state;
     const verbosityOptions = [
       { verbosity: 0, details: i18n._(t`0 (Normal)`) },
@@ -101,11 +102,34 @@ class JobTemplateDetail extends Component {
     const generateCallBackUrl = `${window.location.origin + url}callback/`;
     const isInitialized = !hasTemplateLoading && !hasContentLoading;
 
-    const credentialType = c =>
-      c === 'aws' || c === 'ssh' ? c.toUpperCase() : toTitleCase(c);
-
     const renderOptionsField =
       become_enabled || host_config_key || allow_simultaneous || use_fact_cache;
+
+    let createdBy = '';
+    if (created) {
+      if (summary_fields.created_by && summary_fields.created_by.username) {
+        createdBy = i18n._(
+          t`${formatDateString(created)} by ${
+            summary_fields.created_by.username
+          }`
+        );
+      } else {
+        createdBy = formatDateString(created);
+      }
+    }
+
+    let modifiedBy = '';
+    if (modified) {
+      if (summary_fields.modified_by && summary_fields.modified_by.username) {
+        modifiedBy = i18n._(
+          t`${formatDateString(modified)} by ${
+            summary_fields.modified_by.username
+          }`
+        );
+      } else {
+        modifiedBy = formatDateString(modified);
+      }
+    }
 
     const renderOptions = (
       <TextList component={TextListVariants.ul}>
@@ -147,13 +171,13 @@ class JobTemplateDetail extends Component {
             <Detail label={i18n._(t`Name`)} value={name} />
             <Detail label={i18n._(t`Description`)} value={description} />
             <Detail label={i18n._(t`Job Type`)} value={job_type} />
-            {inventory && (
+            {summary_fields.inventory && (
               <Detail
                 label={i18n._(t`Inventory`)}
                 value={summary_fields.inventory.name}
               />
             )}
-            {project && (
+            {summary_fields.project && (
               <Detail
                 label={i18n._(t`Project`)}
                 value={summary_fields.project.name}
@@ -167,14 +191,18 @@ class JobTemplateDetail extends Component {
               value={verbosityDetails[0].details}
             />
             <Detail label={i18n._(t`Timeout`)} value={timeout || '0'} />
-            <Detail
-              label={i18n._(t`Created`)}
-              value={`${created} by ${summary_fields.created_by.username}`} // TODO: link to user in users
-            />
-            <Detail
-              label={i18n._(t`Last Modified`)}
-              value={`${modified} by ${summary_fields.modified_by.username}`} // TODO: link to user in users
-            />
+            {createdBy && (
+              <Detail
+                label={i18n._(t`Created`)}
+                value={createdBy} // TODO: link to user in users
+              />
+            )}
+            {modifiedBy && (
+              <Detail
+                label={i18n._(t`Last Modified`)}
+                value={modifiedBy} // TODO: link to user in users
+              />
+            )}
             <Detail
               label={i18n._(t`Show Changes`)}
               value={diff_mode ? 'On' : 'Off'}
@@ -203,13 +231,7 @@ class JobTemplateDetail extends Component {
                   value={
                     <ChipGroup showOverflowAfter={5}>
                       {summary_fields.credentials.map(c => (
-                        <Chip key={c.id} isReadOnly>
-                          <strong className="credential">
-                            {c.kind ? credentialType(c.kind) : i18n._(t`Cloud`)}
-                            :
-                          </strong>
-                          {` ${c.name}`}
-                        </Chip>
+                        <CredentialChip key={c.id} credential={c} isReadOnly />
                       ))}
                     </ChipGroup>
                   }
@@ -286,14 +308,19 @@ class JobTemplateDetail extends Component {
                 {i18n._(t`Edit`)}
               </Button>
             )}
-            <Button
-              variant="secondary"
-              component={Link}
-              to="/templates"
-              aria-label={i18n._(t`Launch`)}
-            >
-              {i18n._(t`Launch`)}
-            </Button>
+            {canLaunch && (
+              <LaunchButton resource={template} aria-label={i18n._(t`Launch`)}>
+                {({ handleLaunch }) => (
+                  <Button
+                    variant="secondary"
+                    type="submit"
+                    onClick={handleLaunch}
+                  >
+                    {i18n._(t`Launch`)}
+                  </Button>
+                )}
+              </LaunchButton>
+            )}
             <Button
               variant="secondary"
               component={Link}
